@@ -4,7 +4,10 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 #include "MAX72S19.h"
+#include "button.h"
 #include "pingpong.h"
+#include "stdbool.h"
+#include "stdint.h"
 
 #define PIN_BTN_PLAYER1 PINA1
 #define PIN_BTN_PLAYER2 PINA2
@@ -13,25 +16,48 @@
 #define PIN_DISP_CLK    PINA5
 #define PIN_DISP_CS     PINA6
 
-#define PINA_CHANGED(pin) ((PINA & (1 << (pin))) != (portACache & (1 << (pin))))
-#define READ_PINA(pin) (PINA & (1 << (pin)))
+#define TICK_MS 2
+#define BTN_DEBOUNCE_TICKS 25
+#define BTN_PRESS_TICKS 1
+#define BTN_LONG_PRESS_TICKS 750
 
-void ioSetup();
-void onPinChangeA(uint8_t pin);
-void writeNumber(uint16_t);
+#define PINA_CHANGED(p) ((PINA & (1 << (p))) != (_portACache & (1 << (p))))
+#define READ_PINA(p) (PINA & (1 << (p)))
+#define BTN_FOR_PIN(p) ((p==PINA1) \
+                          ? &_buttons[0] \
+                          : (p==PINA2) \
+                            ? &_buttons[1] \
+                            : &_buttons[2])
 
-uint8_t portACache;
+#define DEBUG_LED_ON (PORTA |= 0x01);
+#define DEBUG_LED_OFF (PORTA &= ~(0x01));
+#define DEBUG_TOGGLE_LED (PORTA = (PORTA & 0xFE) | ~(PORTA & 0x01))
+
+static void _ioSetup();
+static void _timerSetup();
+static void _onPinChangeA(uint8_t pin);
+static void _checkButtons();
+static void _tick();
+
+static Button _buttons[3];
+static uint32_t _ticks;
+static uint8_t _portACache;
 
 int main (void) {
-  uint16_t n = 0;
-  ioSetup();
-  PORTA |= 0x01;
+  _ioSetup();
+  _timerSetup();
 
-  pingpongInit();
-  pingpongGameLoop();
+  // Globally enable interrupts. pretty important.
+  sei();
+
+  // References to buttons for player 1, 2, and mode button
+  pingpongInit(&_buttons[0], &_buttons[1], &_buttons[2]);
+
+  // Everything done via interrupts from this point
+  while (1);
 }
 
-void ioSetup() {
+static void _ioSetup() {
   // Port A configuration
   // 1 = output in DDRx
   // A:7654 3210
@@ -60,10 +86,12 @@ void ioSetup() {
   // Datasheet 9.3.5
   PCMSK0 |= (1 << PCINT1) | (1 << PCINT2) | (1 << PCINT3);
 
-  // Globally enable interrupts. pretty important.
-  sei();
+  _portACache = PINA;
 
-  portACache = PINA;
+  _buttons[0].pin = PIN_BTN_PLAYER1;
+  _buttons[1].pin = PIN_BTN_PLAYER2;
+  _buttons[2].pin = PIN_BTN_MODE;
+
   displaySetup(PIN_DISP_CS, PIN_DISP_DATA, PIN_DISP_CLK);
   displaySetDecodeMode(0x00);
   displaySetIntensity(0xF);
@@ -72,51 +100,122 @@ void ioSetup() {
   displayActivate();
 }
 
+static void _timerSetup() {
+  // Timer / Counter 0 control register A
+  TCCR0A = 0x02;
+  // 0000 0010 : 0x02
+  // |||| ||\\- WGM00, WGM01, Set for CTC (clear timer on compare)
+  // |||| \\- Unused
+  // ||\\- COM0B1, COM0B0: Compare match output B, disconnectoed
+  // \\- COM0A1, COM0A0: Compare match output A, disconnected
+
+  // Timer / Counter 0 control register B
+  TCCR0B = 0x04;
+  // 0000 0100 : 0x04
+  // |||| |\\\- CS02, CS01, CS00: Clock select: Main clock / 256
+  // |||| \- WGM02
+  // ||\\- Reserved, unused
+  // \\- FOC0A, FOC0B: Force output compare A/B: irrelevant
+
+  // In TCCR0B, Timer 0's prescaler is set to use a prescaler of 256.
+  // This means that the counter counts at a frequency of F_CPU / 256.
+  // We're using 16 MHz, so the counter frequency will be 62.5 kHz
+
+  // Timer / Counter 0 Output Compare Register A
+  OCR0A = 124;
+
+  // The output compare register contains the value of the counter at which
+  // we'll do something. In this case, we'll generate an interrupt.
+  // At 62.5 kHz, this means the interrupt will be generated 500 times per
+  // second, or once every 2 milliseconds.
+
+  // Timer / Counter 0 Interrupt Mask register
+  TIMSK0 = 0x02;
+  // 0000 0010 : 0x02
+  // |||| |||\- TOIE0: Timer/Counter 0 overflow interrupt enable: off
+  // |||| ||\- OC1E0A: Timer/Counter 0 output compare match A enable: on
+  // |||| |\- OC1E0B: Timer/Counter 0 output compare match B enable: off
+  // \\\\ \- Reserved, unused.
+
+  // In TIMSK0, we're enabling the interrupt for Output compare A. in OCR0A
+  // we set the value to compare to, here we're making sure an interrupt will
+  // be triggered when Timer/Counter 0's counter value matches what's in there.
+}
+
+static void _onPinChangeA(uint8_t pin) {
+  Button * btn = BTN_FOR_PIN(pin);
+
+  if (READ_PINA(pin)) {
+    // Don't care about positive flanks here, button down is cleared in
+    // _checkButtons are required
+    return;
+  }
+
+  btn->down = true;
+
+  if (_ticks - btn->lastDown > BTN_DEBOUNCE_TICKS) {
+    btn->lastDown = _ticks;
+  }
+}
+
+static void _checkButtons() {
+  uint8_t i;
+  bool wasDown;
+  bool wasHeld;
+
+  Button * btn;
+
+  for (i = 0; i < sizeof(_buttons) / sizeof(Button); i++) {
+    btn = &_buttons[i];
+    wasDown = btn->down;
+    wasHeld = btn->held;
+
+    if (READ_PINA(btn->pin)) {
+      btn->down = false;
+      btn->held = false;
+
+      // Register the (short) press if the button was down for more than
+      // press ticks, but less than hold ticks, and is now released
+      if (
+          wasDown && !wasHeld && 
+          _ticks - btn->lastPress >= BTN_DEBOUNCE_TICKS &&
+          _ticks - btn->lastDown >= BTN_PRESS_TICKS) {
+        pingpongButtonPress(btn);
+        btn->lastPress = _ticks;
+      }
+
+      continue;
+    }
+
+    if (_ticks - btn->lastDown > BTN_LONG_PRESS_TICKS && !btn->held) {
+      btn->held = true;
+      pingpongButtonLongPress(btn);
+    }
+  }
+}
+
+static void _tick() {
+  _ticks++;
+  _checkButtons();
+  pingpongGameTick();
+}
+
 // Interrupt vector 0 triggered
 // This vector is used for pin change interrupts on port A
 ISR(PCINT0_vect) {
   for (uint8_t i = 0; i < 8; i++) {
     if (PINA_CHANGED(i)) {
-      onPinChangeA(i);
-      portACache = PINA;
+      _onPinChangeA(i);
+      _portACache = PINA;
       break;
     }
   }
 
-  portACache = PINA;
+  _portACache = PINA;
 }
 
-void onPinChangeA(uint8_t pin) {
-  uint8_t player;
-
-  if (pin == PIN_BTN_PLAYER1 || pin == PIN_BTN_PLAYER2) {
-    player = pin == PIN_BTN_PLAYER1 ? 1 : 2;
-
-    if (READ_PINA(pin)) {
-      pingpongPlayerButtonUp(player);
-    } else {
-      pingpongPlayerButtonDown(player);
-    }
-
-  } else if (pin == PIN_BTN_MODE) {
-    if (READ_PINA(pin)) {
-      pingpongModeButtonUp();
-    } else {
-      pingpongModeButtonDown();
-    }
-  }
-}
-
-// FIXME: doesn't clear digits that it's not writing
-void writeNumber(uint16_t n) {
-  uint16_t rem = n;
-  uint8_t digitIndex = 0;
-
-  do {
-    displayWriteNumber(digitIndex, rem % 10);
-
-    rem /= 10;
-    digitIndex++;
-  } while (rem);
-
+// Interrupt vector for Timer 0 output compare match A triggered
+// Used for a 2ms tick for timing things that could do with timing
+ISR(TIM0_COMPA_vect) {
+  _tick();
 }

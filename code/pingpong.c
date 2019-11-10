@@ -1,10 +1,7 @@
 #include "pingpong.h"
 #include "MAX72S19.h"
+#include "button.h"
 #include "stdbool.h"
-
-#define PINGPONG_PLAYER_NONE 0
-#define PINGPONG_PLAYER_1    1
-#define PINGPONG_PLAYER_2    2
 
 #define PINGPONG_DISPMODE_GAME 0
 #define PINGPONG_DISPMODE_SET  1
@@ -22,6 +19,14 @@
 #define LED_PLAYER2     (5)
 #define LED_ROW_PLAYERS (4)
 
+#define OTHER_PLAYER(p) (p == PINGPONG_PLAYER_1\
+    ? PINGPONG_PLAYER_2 \
+    : PINGPONG_PLAYER_1)
+
+static void _modeButtonPress();
+static void _modeButtonLongPress();
+static void _playerButtonPress(uint8_t);
+static void _playerButtonLongPress(uint8_t);
 static void _swapSides();
 static void _writeScore(uint8_t player, uint8_t score);
 static void _refreshDisplay();
@@ -33,44 +38,83 @@ static void _toggleMode();
 static bool _isGameOver();
 static uint8_t _getWinningPlayer();
 static void _endOfGame();
+static void _newGame();
 
 static uint8_t _startingPlayer = PINGPONG_PLAYER_NONE;
 static uint8_t _currentPlayer = PINGPONG_PLAYER_NONE;
 
+static uint16_t _ticks;
 static uint8_t _state = PINGPONG_STATE_IDLE;
 static uint8_t _dispMode = PINGPONG_DISPMODE_GAME;
 static uint8_t _gameScores[] =    { 0, 0 };
 static uint8_t _setScores[] =     { 0, 0 };
 static uint8_t _allTimeScores[] = { 0, 0 };
-static bool _pButtonDown[] = { false, false };
-static bool _mButtonDown = false;
+static Button * _playerButtons[2];
+static Button * _modeButton;
 
-void pingpongInit() {
+void pingpongInit(Button * p1Button, Button * p2Button, Button * modeButton) {
+  _playerButtons[0] = p1Button;
+  _playerButtons[1] = p2Button;
+  _modeButton = modeButton;
   // TODO load allTimeScores from eeprom
   _refreshDisplay();
 }
 
-void pingpongGameLoop() {
-  while (1) {
+void pingpongGameTick() {
+  _ticks++;
+
+  // TODO: cleaner animation system
+
+  if (_state == PINGPONG_STATE_GAME_END) {
+    if (_ticks % 100 == 0) {
+      _indicatePlayerTurn(
+          _ticks % 200 == 0 
+            ? PINGPONG_PLAYER_NONE
+            : _getWinningPlayer());
+    }
   }
 }
 
-void pingpongPlayerButtonDown(uint8_t player) {
-  _pButtonDown[player - 1] = true;
-  // TODO: debounce
-  
+void pingpongButtonPress(Button * button) {
+  if (button == _modeButton) {
+    _modeButtonPress();
+    return;
+  }
+
+  _playerButtonPress(
+      button == _playerButtons[0] ? PINGPONG_PLAYER_1 : PINGPONG_PLAYER_2);
+}
+
+void pingpongButtonLongPress(Button * button) {
+  if (button == _modeButton) {
+    _modeButtonLongPress();
+    return;
+  }
+
+  _playerButtonLongPress(
+      button == _playerButtons[0] ? PINGPONG_PLAYER_1 : PINGPONG_PLAYER_2);
+}
+
+static void _modeButtonPress() {
+  _toggleMode();
+}
+
+static void _modeButtonLongPress() {
+}
+
+static void _playerButtonPress(uint8_t player) {
   switch (_state) {
     case PINGPONG_STATE_IDLE:
       if (_startingPlayer == PINGPONG_PLAYER_NONE) {
-        _startingPlayer = player;
-        _currentPlayer = _startingPlayer;
+        _startingPlayer = _currentPlayer = player;
         _indicatePlayerTurn(_currentPlayer);
         _state = PINGPONG_STATE_GAME;
-        return;
+        break;
       }
 
-      _state = PINGPONG_STATE_GAME;
+      _currentPlayer = _startingPlayer;
       _indicatePlayerTurn(_currentPlayer);
+      _state = PINGPONG_STATE_GAME;
       break;
 
     case PINGPONG_STATE_GAME:
@@ -78,22 +122,33 @@ void pingpongPlayerButtonDown(uint8_t player) {
       break;
 
     case PINGPONG_STATE_GAME_END:
-      // TODO: start new game
+      _newGame();
       break;
   }
 }
 
-void pingpongPlayerButtonUp(uint8_t player) {
-  _pButtonDown[player - 1] = false;
-}
+static void _playerButtonLongPress(uint8_t player) {
+  if (_playerButtons[0]->held && _playerButtons[1]->held) {
+    // Undo point removal of player who first reached long press
+    // Gosh this whole thing could really do with unit tests
+    if (_state == PINGPONG_STATE_GAME) {
+      _addPoint(OTHER_PLAYER(player));
+    }
 
-void pingpongModeButtonDown() {
-  _mButtonDown = true;
-  _toggleMode();
-}
+    _swapSides();
+    return;
+  }
 
-void pingpongModeButtonUp() {
-  _mButtonDown = false;
+  switch (_state) {
+    case PINGPONG_STATE_IDLE:
+      // Nothing to do in this case?
+      break;
+
+    case PINGPONG_STATE_GAME:
+    case PINGPONG_STATE_GAME_END: // Fallthrough intentional
+      _removePoint(player);
+      break;
+  }
 }
 
 static void _swapSides() {
@@ -137,11 +192,6 @@ static void _refreshDisplay() {
   uint8_t p2Score;
 
   switch (_dispMode) {
-    case PINGPONG_DISPMODE_GAME:
-      p1Score = _gameScores[0];
-      p2Score = _gameScores[1];
-      break;
-
     case PINGPONG_DISPMODE_SET:
       p1Score = _setScores[0];
       p2Score = _setScores[1];
@@ -150,6 +200,12 @@ static void _refreshDisplay() {
     case PINGPONG_DISPMODE_ALL:
       p1Score = _allTimeScores[0];
       p2Score = _allTimeScores[1];
+      break;
+
+    case PINGPONG_DISPMODE_GAME:
+    default:
+      p1Score = _gameScores[0];
+      p2Score = _gameScores[1];
       break;
   }
 
@@ -160,13 +216,10 @@ static void _refreshDisplay() {
 static uint8_t _getCurrentPlayer() {
   uint8_t combinedScore = _gameScores[0] + _gameScores[1];
   uint8_t swpPoints = PINGPONG_POINTS_TO_CHANGE_SERVE;
-  uint8_t nonStartingPlayer = _startingPlayer == PINGPONG_PLAYER_1
-    ? PINGPONG_PLAYER_2
-    : PINGPONG_PLAYER_1;
 
   return combinedScore % (swpPoints * 2) < swpPoints 
     ? _startingPlayer 
-    : nonStartingPlayer;
+    : OTHER_PLAYER(_startingPlayer);
 }
 
 static void _indicatePlayerTurn(uint8_t player) {
@@ -184,14 +237,43 @@ static void _addPoint(uint8_t player) {
 
   _gameScores[player - 1]++;
   _writeScore(player, _gameScores[player - 1]);
-  _currentPlayer = _getCurrentPlayer();
-  _indicatePlayerTurn(_currentPlayer);
 
-  if (_isGameOver()) _endOfGame();
+  if (_isGameOver()) {
+    _endOfGame();
+  } else {
+    _currentPlayer = _getCurrentPlayer();
+    _indicatePlayerTurn(_currentPlayer);
+  }
 }
 
 static void _removePoint(uint8_t player) {
-  // TODO
+  if (_state == PINGPONG_STATE_IDLE) return;
+  if (_gameScores[player - 1] == 0) return;
+
+  bool wasGameOver = _state == PINGPONG_STATE_GAME_END;
+  uint8_t prevWinner = PINGPONG_PLAYER_NONE;
+
+  if (wasGameOver) prevWinner = _getWinningPlayer();
+
+  _gameScores[player - 1]--;
+
+  if (_isGameOver() && wasGameOver) {
+    // This doesn't change anything, so don't bother.
+    _gameScores[player - 1]++;
+    return;
+  }
+
+  _dispMode = PINGPONG_DISPMODE_GAME;
+  _refreshDisplay();
+  _currentPlayer = _getCurrentPlayer();
+  _indicatePlayerTurn(_currentPlayer);
+
+  if (_state == PINGPONG_STATE_GAME_END && !_isGameOver()) {
+    // If game over is undone, revert set / all time score changes
+    _setScores[prevWinner - 1]--;
+    _allTimeScores[prevWinner - 1]--;
+    _state = PINGPONG_STATE_GAME;
+  }
 }
 
 static void _toggleMode() {
@@ -230,9 +312,22 @@ static void _endOfGame() {
   _setScores[winner - 1]++;
   _allTimeScores[winner - 1]++;
   _state = PINGPONG_STATE_GAME_END;
+}
 
-  // TODO: blink current game scores a few times
-  // Then show set score for a while, then reset to game scores that are now 0-0
+static void _newGame() {
+  _gameScores[0] = _gameScores[1] = 0;
+  _dispMode = PINGPONG_DISPMODE_GAME;
+  _refreshDisplay();
 
-  // TODO tempoarily switch mode to show set scores
+  if (_startingPlayer == PINGPONG_PLAYER_NONE) {
+    _state = PINGPONG_STATE_IDLE;
+    _currentPlayer = PINGPONG_PLAYER_NONE;
+    _indicatePlayerTurn(_currentPlayer);
+    return;
+  }
+
+  _startingPlayer = OTHER_PLAYER(_startingPlayer);
+  _currentPlayer = _startingPlayer;
+  _indicatePlayerTurn(_currentPlayer);
+  _state = PINGPONG_STATE_GAME;
 }
