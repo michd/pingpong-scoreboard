@@ -3,9 +3,10 @@
 #include "button.h"
 #include "stdbool.h"
 
-#define PINGPONG_DISPMODE_GAME 0
-#define PINGPONG_DISPMODE_SET  1
-#define PINGPONG_DISPMODE_ALL  2
+#define PINGPONG_DISPMODE_NONE 0
+#define PINGPONG_DISPMODE_GAME 1
+#define PINGPONG_DISPMODE_SET  2
+#define PINGPONG_DISPMODE_ALL  3
 
 #define PINGPONG_STATE_IDLE     0
 #define PINGPONG_STATE_GAME     1
@@ -18,6 +19,11 @@
 #define LED_PLAYER1     (6)
 #define LED_PLAYER2     (5)
 #define LED_ROW_PLAYERS (4)
+
+#define LED_ROW_DISPMODE  (5)
+#define LED_DISPMODE_GAME (6)
+#define LED_DISPMODE_SET  (5)
+#define LED_DISPMODE_ALL  (4)
 
 #define OTHER_PLAYER(p) (p == PINGPONG_PLAYER_1\
     ? PINGPONG_PLAYER_2 \
@@ -35,6 +41,7 @@ static void _indicatePlayerTurn(uint8_t player);
 static void _addPoint(uint8_t player);
 static void _removePoint(uint8_t player);
 static void _toggleMode();
+static void _setMode(uint8_t);
 static bool _isGameOver();
 static uint8_t _getWinningPlayer();
 static void _endOfGame();
@@ -45,7 +52,7 @@ static uint8_t _currentPlayer = PINGPONG_PLAYER_NONE;
 
 static uint16_t _ticks;
 static uint8_t _state = PINGPONG_STATE_IDLE;
-static uint8_t _dispMode = PINGPONG_DISPMODE_GAME;
+static uint8_t _dispMode = PINGPONG_DISPMODE_NONE;
 static uint8_t _gameScores[] =    { 0, 0 };
 static uint8_t _setScores[] =     { 0, 0 };
 static uint8_t _allTimeScores[] = { 0, 0 };
@@ -56,8 +63,8 @@ void pingpongInit(Button * p1Button, Button * p2Button, Button * modeButton) {
   _playerButtons[0] = p1Button;
   _playerButtons[1] = p2Button;
   _modeButton = modeButton;
+  _setMode(PINGPONG_DISPMODE_GAME);
   // TODO load allTimeScores from eeprom
-  _refreshDisplay();
 }
 
 void pingpongGameTick() {
@@ -263,8 +270,7 @@ static void _removePoint(uint8_t player) {
     return;
   }
 
-  _dispMode = PINGPONG_DISPMODE_GAME;
-  _refreshDisplay();
+  _setMode(PINGPONG_DISPMODE_GAME);
   _currentPlayer = _getCurrentPlayer();
   _indicatePlayerTurn(_currentPlayer);
 
@@ -277,10 +283,31 @@ static void _removePoint(uint8_t player) {
 }
 
 static void _toggleMode() {
-  _dispMode++;
-  if (_dispMode > PINGPONG_DISPMODE_ALL) _dispMode = PINGPONG_DISPMODE_GAME;
+  uint8_t newDispMode = _dispMode + 1;
+  if (newDispMode > PINGPONG_DISPMODE_ALL) newDispMode = PINGPONG_DISPMODE_GAME;
+  _setMode(newDispMode);
+}
+
+static void _setMode(uint8_t newMode) {
+  if (_dispMode == newMode) {
+    _refreshDisplay();
+    return;
+  }
+
+  _dispMode = newMode;
+
+  uint8_t leds;
+
+  switch (_dispMode) {
+    case PINGPONG_DISPMODE_NONE: leds = 0x00; break;
+    case PINGPONG_DISPMODE_SET:  leds = (1 << LED_DISPMODE_SET); break;
+    case PINGPONG_DISPMODE_ALL:  leds = (1 << LED_DISPMODE_ALL); break;
+    case PINGPONG_DISPMODE_GAME: // Fallthrough intentional
+    default:                    leds = (1 << LED_DISPMODE_GAME); break;
+  }
+
+  displaySetRow(LED_ROW_DISPMODE, leds);
   _refreshDisplay();
-  // TODO: add some LEDs to show what the current mode is, with another digit
 }
 
 static bool _isGameOver() {
@@ -316,8 +343,7 @@ static void _endOfGame() {
 
 static void _newGame() {
   _gameScores[0] = _gameScores[1] = 0;
-  _dispMode = PINGPONG_DISPMODE_GAME;
-  _refreshDisplay();
+  _setMode(PINGPONG_DISPMODE_GAME);
 
   if (_startingPlayer == PINGPONG_PLAYER_NONE) {
     _state = PINGPONG_STATE_IDLE;

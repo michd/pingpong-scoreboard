@@ -95,7 +95,7 @@ static void _ioSetup() {
   displaySetup(PIN_DISP_CS, PIN_DISP_DATA, PIN_DISP_CLK);
   displaySetDecodeMode(0x00);
   displaySetIntensity(0xF);
-  displaySetScanLimit(5); // 5th digit used for some extra indication LEDs
+  displaySetScanLimit(6); // 5th and 6th digit used for some indication LEDs
   displayClear();
   displayActivate();
 }
