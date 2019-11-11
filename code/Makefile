@@ -36,7 +36,7 @@ PROGRAMMER = -c avrispmkII
 #       \\\\ \\\- [unused]
 FUSES = -U lfuse:w:0xff:m -U hfuse:w:0xd4:m -U efuse:w:0xff:m
 
-OBJECTS = main.o MAX72S19.o pingpong.o
+OBJECTS = main.o MAX72S19.o pingpong.o animation.o
 
 # Tune the lines below only if you know what you are doing:
 

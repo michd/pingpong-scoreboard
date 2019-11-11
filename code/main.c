@@ -7,9 +7,9 @@
 #include "MAX72S19.h"
 #include "button.h"
 #include "pingpong.h"
+#include "animation.h"
 #include "stdbool.h"
 #include "stdint.h"
-
 
 #define PIN_BTN_PLAYER1 PINA1
 #define PIN_BTN_PLAYER2 PINA2
@@ -205,6 +205,7 @@ static void _checkButtons() {
 static void _tick() {
   _ticks++;
   _checkButtons();
+  animationTick(_ticks);
   pingpongGameTick();
 }
 
