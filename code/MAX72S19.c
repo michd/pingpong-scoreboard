@@ -44,7 +44,7 @@ void displaySetLED(uint8_t row, uint8_t column, bool on) {
     newRowData &= ~(1 << column);
   }
 
-  _setDigitRegister(REG_DIGIT0, newRowData);
+  _setDigitRegister(REG_DIGIT0 + row, newRowData);
 }
 
 void displaySetRow(uint8_t row, uint8_t states) {
