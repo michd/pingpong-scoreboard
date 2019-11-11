@@ -18,7 +18,7 @@ PROGRAMMER = -c avrispmkII
 #       |\- CKOUT: Click Output Enable:On
 #       \- CKDIV8: Divide clock by 8: Off
 #
-# hfuse 1101 1100 : 0xDC
+# hfuse 1101 0100 : 0xD4
 #       |||| |\\\- BODLEVEL 2:0: Brownout detection level - set to 4.3V
 #       |||| |                   See table 20-7 in datasheet
 #       |||| \- EESAVE: Preserve EEPROM through chip erase, enabled
@@ -34,7 +34,7 @@ PROGRAMMER = -c avrispmkII
 #       |||| |||\ - SELFPRGEN: Self-Programming Enable
 #       |||| |||               Also disabled by being at the default 1.
 #       \\\\ \\\- [unused]
-FUSES = -U lfuse:w:0xff:m -U hfuse:w:0xdc:m -U efuse:w:0xff:m
+FUSES = -U lfuse:w:0xff:m -U hfuse:w:0xd4:m -U efuse:w:0xff:m
 
 OBJECTS = main.o MAX72S19.o pingpong.o
 
