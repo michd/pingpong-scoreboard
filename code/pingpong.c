@@ -50,6 +50,7 @@ static bool _isGameOver();
 static uint8_t _getWinningPlayer();
 static void _endOfGame();
 static void _newGame();
+static void _indicateIfScoresSaved();
 
 static uint16_t eepromAddrPlayer1;
 static uint16_t eepromAddrPlayer2;
@@ -264,7 +265,7 @@ static void _addPoint(uint8_t player) {
   if (player == PINGPONG_PLAYER_NONE) return;
 
   _gameScores[player - 1]++;
-  _writeScore(player, _gameScores[player - 1]);
+  _refreshDisplay();
 
   if (_isGameOver()) {
     _endOfGame();
@@ -329,6 +330,7 @@ static void _setMode(uint8_t newMode) {
 
   displaySetRow(LED_ROW_DISPMODE, leds);
   _refreshDisplay();
+  _indicateIfScoresSaved();
 }
 
 static void _resetScore() {
@@ -432,4 +434,16 @@ static void _saveScores() {
   }
 
   _scoresLastSaved = _ticks;
+  _indicateIfScoresSaved();
+}
+
+static void _indicateIfScoresSaved() {
+  if (_dispMode != PINGPONG_DISPMODE_ALL) return;
+
+  if (_cachedAllTimeScores[0] != _allTimeScores[0] ||
+      _cachedAllTimeScores[1] != _allTimeScores[1]) {
+    return;
+  }
+
+  displaySetLED(0, 7, true);
 }
