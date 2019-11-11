@@ -1,5 +1,6 @@
 #include <avr/eeprom.h>
 #include "pingpong.h"
+#include "animation.h"
 #include "MAX72S19.h"
 #include "button.h"
 #include "stdbool.h"
@@ -51,6 +52,8 @@ static uint8_t _getWinningPlayer();
 static void _endOfGame();
 static void _newGame();
 static void _indicateIfScoresSaved();
+static void _startAnimFrame(Animation *);
+static void _startAnimFinished(Animation *);
 
 static uint16_t eepromAddrPlayer1;
 static uint16_t eepromAddrPlayer2;
@@ -68,10 +71,11 @@ static uint32_t _scoresLastSaved;
 static void _saveScores();
 static Button * _playerButtons[2];
 static Button * _modeButton;
+static Animation _startupAnimation;
 
 void pingpongInit(
-    Button * p1Button, Button * p2Button, Button * modeButton,
-    uint16_t eepromP1, uint16_t eepromP2) {
+  Button * p1Button, Button * p2Button, Button * modeButton,
+  uint16_t eepromP1, uint16_t eepromP2) {
   _playerButtons[0] = p1Button;
   _playerButtons[1] = p2Button;
   _modeButton = modeButton;
@@ -84,14 +88,19 @@ void pingpongInit(
   _cachedAllTimeScores[0] = _allTimeScores[0];
   _cachedAllTimeScores[1] = _allTimeScores[1];
 
-  _setMode(PINGPONG_DISPMODE_GAME);
+  _startupAnimation.stepTicks = 25;
+  _startupAnimation.duration = 0x4F;
+  _startupAnimation.frame = _startAnimFrame;
+  _startupAnimation.finished = _startAnimFinished;
+
+  animationSetActive(&_startupAnimation);
 }
 
 void pingpongGameTick() {
   _ticks++;
   _saveScores();
 
-  // TODO: cleaner animation system
+  // TODO: use animation system for this
 
   if (_state == PINGPONG_STATE_GAME_END) {
     if (_ticks % 100 == 0) {
@@ -447,3 +456,28 @@ static void _indicateIfScoresSaved() {
 
   displaySetLED(0, 7, true);
 }
+
+void _startAnimFrame(Animation * anim) {
+  if (anim->position == 0) {
+    displayWriteChar(3, 'P', false);
+    displayWriteChar(2, 'i', false);
+    displayWriteChar(1, 'n', false);
+    displayWriteChar(0, 'g', false);
+  } else  if (anim->position == 0x20) {
+    displayWriteChar(2, 'o', false);
+  } else if (anim->position == 0x40) {
+    _setMode(PINGPONG_DISPMODE_GAME);
+  }
+
+  anim->position++;
+
+  if (anim->position < 0x10 
+      || (anim->position >= 0x20 && anim->position < 0x30)
+      || (anim->position >= 0x40)) {
+    displaySetIntensity(anim->position % 0x10);
+  } else {
+    displaySetIntensity(0xF - (anim->position % 0x10));
+  }
+}
+
+void _startAnimFinished(Animation * anim) { }
