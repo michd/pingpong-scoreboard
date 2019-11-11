@@ -362,12 +362,10 @@ static void _resetScore() {
       return;
 
     case PINGPONG_DISPMODE_ALL:
-      _allTimeScores[0] = _allTimeScores[1];
-      // TODO: write to EEPROM
-      // However keep it on a cycle where it'll only look to save if changed
-      // every 30 seconds or so, and reset that cycle here. This allows quickly
-      // turning off the device to undo clearing all time scores, if done by
-      // mistake.
+      _allTimeScores[0] = _allTimeScores[1] = 0;
+      _setScores[0] = _setScores[1] = 0;
+      _scoresLastSaved = _ticks;
+      _refreshDisplay();
       return;
   }
 }
