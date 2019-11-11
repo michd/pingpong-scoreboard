@@ -134,30 +134,34 @@ void displayActivate() {
 // Private methods
 
 static uint8_t _mapChar(char inputChar) {
-	switch (inputChar) {
-		//  Segments legend:
-		//          _______
-		//        /   A   /
-		//     F /       / B
-		//      /_______/
-		//     /   G   /
-		//  E /       / C
-		//   /_______/ * dp
-		//       D
-		
-		//                dpABCDEFG
-		case '0': return 0b01111110;
-		case '1': return 0b00110000;
-		case '2': return 0b01101101;
-		case '3': return 0b01111001;
-		case '4': return 0b00110011;
-		case '5': return 0b01011011;
-		case '6': return 0b01011111;
-		case '7': return 0b01110000;
-		case '8': return 0b01111111;
-		case '9': return 0b01111011;
-		default:  return 0b00000000;
-	}
+  switch (inputChar) {
+    //  Segments legend:
+    //          _______
+    //        /   A   /
+    //     F /       / B
+    //      /_______/
+    //     /   G   /
+    //  E /       / C
+    //   /_______/ * dp
+    //       D
+    //                dpABCDEFG
+    case '0': return 0b01111110;
+    case '1': return 0b00110000;
+    case '2': return 0b01101101;
+    case '3': return 0b01111001;
+    case '4': return 0b00110011;
+    case '5': return 0b01011011;
+    case '6': return 0b01011111;
+    case '7': return 0b01110000;
+    case '8': return 0b01111111;
+    case '9': return 0b01111011;
+    case 'P': return 0b01100111;
+    case 'i': return 0b00010000;
+    case 'n': return 0b00010101;
+    case 'g': return 0b01111011;
+    case 'o': return 0b00011101;
+    default:  return 0b00000000;
+  }
 }
 
 static void _beginTransmission() {
