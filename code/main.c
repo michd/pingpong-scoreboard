@@ -2,12 +2,14 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/eeprom.h>
 #include <util/delay.h>
 #include "MAX72S19.h"
 #include "button.h"
 #include "pingpong.h"
 #include "stdbool.h"
 #include "stdint.h"
+
 
 #define PIN_BTN_PLAYER1 PINA1
 #define PIN_BTN_PLAYER2 PINA2
@@ -29,6 +31,9 @@
                             ? &_buttons[1] \
                             : &_buttons[2])
 
+#define EEPROM_ADDR_SCORE_P1 (0x00)
+#define EEPROM_ADDR_SCORE_P2 (0x02)
+
 #define DEBUG_LED_ON (PORTA |= 0x01);
 #define DEBUG_LED_OFF (PORTA &= ~(0x01));
 #define DEBUG_TOGGLE_LED (PORTA = (PORTA & 0xFE) | ~(PORTA & 0x01))
@@ -47,11 +52,14 @@ int main (void) {
   _ioSetup();
   _timerSetup();
 
+  // References to buttons for player 1, 2, and mode button
+  pingpongInit(
+      &_buttons[0], &_buttons[1], &_buttons[2],
+      EEPROM_ADDR_SCORE_P1,
+      EEPROM_ADDR_SCORE_P2);
+
   // Globally enable interrupts. pretty important.
   sei();
-
-  // References to buttons for player 1, 2, and mode button
-  pingpongInit(&_buttons[0], &_buttons[1], &_buttons[2]);
 
   // Everything done via interrupts from this point
   while (1);

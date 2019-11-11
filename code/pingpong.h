@@ -9,7 +9,7 @@
 #define PINGPONG_PLAYER_1    1
 #define PINGPONG_PLAYER_2    2
 
-void pingpongInit(Button *, Button *, Button *);
+void pingpongInit(Button *, Button *, Button *, uint16_t, uint16_t);
 void pingpongGameTick();
 void pingpongButtonPress(Button *);
 void pingpongButtonLongPress(Button *);

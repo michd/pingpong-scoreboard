@@ -1,3 +1,4 @@
+#include <avr/eeprom.h>
 #include "pingpong.h"
 #include "MAX72S19.h"
 #include "button.h"
@@ -29,6 +30,8 @@
     ? PINGPONG_PLAYER_2 \
     : PINGPONG_PLAYER_1)
 
+#define SAVE_DELAY_TICKS (500 * 30) //30 seconds
+
 static void _modeButtonPress();
 static void _modeButtonLongPress();
 static void _playerButtonPress(uint8_t);
@@ -42,33 +45,50 @@ static void _addPoint(uint8_t player);
 static void _removePoint(uint8_t player);
 static void _toggleMode();
 static void _setMode(uint8_t);
+static void _resetScore();
 static bool _isGameOver();
 static uint8_t _getWinningPlayer();
 static void _endOfGame();
 static void _newGame();
 
+static uint16_t eepromAddrPlayer1;
+static uint16_t eepromAddrPlayer2;
+
 static uint8_t _startingPlayer = PINGPONG_PLAYER_NONE;
 static uint8_t _currentPlayer = PINGPONG_PLAYER_NONE;
-
 static uint16_t _ticks;
 static uint8_t _state = PINGPONG_STATE_IDLE;
 static uint8_t _dispMode = PINGPONG_DISPMODE_NONE;
 static uint8_t _gameScores[] =    { 0, 0 };
 static uint8_t _setScores[] =     { 0, 0 };
 static uint8_t _allTimeScores[] = { 0, 0 };
+static uint8_t _cachedAllTimeScores[] = { 0, 0 };
+static uint32_t _scoresLastSaved;
+static void _saveScores();
 static Button * _playerButtons[2];
 static Button * _modeButton;
 
-void pingpongInit(Button * p1Button, Button * p2Button, Button * modeButton) {
+void pingpongInit(
+    Button * p1Button, Button * p2Button, Button * modeButton,
+    uint16_t eepromP1, uint16_t eepromP2) {
   _playerButtons[0] = p1Button;
   _playerButtons[1] = p2Button;
   _modeButton = modeButton;
+
+  eepromAddrPlayer1 = eepromP1;
+  eepromAddrPlayer2 = eepromP2;
+
+  _allTimeScores[0] = eeprom_read_word((uint16_t*)eepromAddrPlayer1);
+  _allTimeScores[1] = eeprom_read_word((uint16_t*)eepromAddrPlayer2);
+  _cachedAllTimeScores[0] = _allTimeScores[0];
+  _cachedAllTimeScores[1] = _allTimeScores[1];
+
   _setMode(PINGPONG_DISPMODE_GAME);
-  // TODO load allTimeScores from eeprom
 }
 
 void pingpongGameTick() {
   _ticks++;
+  _saveScores();
 
   // TODO: cleaner animation system
 
@@ -107,6 +127,7 @@ static void _modeButtonPress() {
 }
 
 static void _modeButtonLongPress() {
+  _resetScore();
 }
 
 static void _playerButtonPress(uint8_t player) {
@@ -310,6 +331,47 @@ static void _setMode(uint8_t newMode) {
   _refreshDisplay();
 }
 
+static void _resetScore() {
+  switch (_dispMode) {
+    case PINGPONG_DISPMODE_NONE:
+      return;
+
+    case PINGPONG_DISPMODE_GAME:
+      switch (_state) {
+        case PINGPONG_STATE_IDLE:
+          return;
+
+        case PINGPONG_STATE_GAME:
+          // Reset score and current player
+          _gameScores[0] = _gameScores[1] = 0;
+          _currentPlayer = _startingPlayer;
+          _indicatePlayerTurn(_currentPlayer);
+          _refreshDisplay();
+          return;
+
+        case PINGPONG_STATE_GAME_END:
+          _newGame();
+          return;
+      }
+
+      return;
+
+    case PINGPONG_DISPMODE_SET:
+      _setScores[0] = _setScores[1] = 0;
+      _refreshDisplay();
+      return;
+
+    case PINGPONG_DISPMODE_ALL:
+      _allTimeScores[0] = _allTimeScores[1];
+      // TODO: write to EEPROM
+      // However keep it on a cycle where it'll only look to save if changed
+      // every 30 seconds or so, and reset that cycle here. This allows quickly
+      // turning off the device to undo clearing all time scores, if done by
+      // mistake.
+      return;
+  }
+}
+
 static bool _isGameOver() {
   int8_t p1Score = _gameScores[0];
   int8_t p2Score = _gameScores[1];
@@ -356,4 +418,20 @@ static void _newGame() {
   _currentPlayer = _startingPlayer;
   _indicatePlayerTurn(_currentPlayer);
   _state = PINGPONG_STATE_GAME;
+}
+
+static void _saveScores() {
+  if (_ticks - _scoresLastSaved < SAVE_DELAY_TICKS) return;
+
+  if (_cachedAllTimeScores[0] != _allTimeScores[0]) {
+    eeprom_write_word((uint16_t*)eepromAddrPlayer1, _allTimeScores[0]);
+    _cachedAllTimeScores[0] = _allTimeScores[0];
+  }
+
+  if (_cachedAllTimeScores[1] != _allTimeScores[1]) {
+    eeprom_write_word((uint16_t*)eepromAddrPlayer2, _allTimeScores[1]);
+    _cachedAllTimeScores[1] = _allTimeScores[1];
+  }
+
+  _scoresLastSaved = _ticks;
 }
