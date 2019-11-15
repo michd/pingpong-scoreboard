@@ -16,7 +16,8 @@
 #define PIN_BTN_MODE    PINA3
 #define PIN_DISP_DATA   PINA4
 #define PIN_DISP_CLK    PINA5
-#define PIN_DISP_CS     PINA6
+#define PIN_DISP_CS     PINA7
+// Pin A6 used for timer 1 output compare match A output
 
 #define TICK_MS 2
 #define BTN_DEBOUNCE_TICKS 25
@@ -69,17 +70,18 @@ static void _ioSetup() {
   // Port A configuration
   // 1 = output in DDRx
   // A:7654 3210
-  //   0111 0001: 0x71 - Pin A7 is unused.
-  //                     Pins A6-A4 are outputs for communicating w/display.
-  //                     Pins A3-A1 are inputs for buttons (w/ interrupt).
-  //                     Pin  A0 is an output for an LED, for debugging.
-  DDRA = 0x71;
+  //   1111 0001: 0xF1 - Pin A7(out) is used for display serial communication
+  //                     Pin A6(out) is used for timer1 output compare match A
+  //                     Pins A5, A4(out) are used for display serial comm.
+  //                     Pins A3-A1(in) are for buttons (w/ interrupt).
+  //                     Pin A0(out) is a debug LED.
+  DDRA = 0xF1;
 
   // If a pin is an input and the PORTx bit is 1, pullup is enabled
   // If it is an output the PORTx sets that output level, 1 or 0
   // A:7654 3210
-  //   0111 1110 :0x0E - Pins A3-A1 are inputs with pullups, for buttons
-  PORTA |= 0x0E | (1 << PIN_DISP_CS);
+  //   0000 1110 :0x0E - Pins A3-A1 are inputs with pullups, for buttons
+  PORTA |= 0x0E | (1 << PIN_DISP_CS); // Also setting chip select high
 
   // A1: PCINT1
   // A2: PCINT2
@@ -109,7 +111,11 @@ static void _ioSetup() {
 }
 
 static void _timerSetup() {
-  // Timer / Counter 0 control register A
+  //----------------------------------------------------------------------------
+  // Timer / Counter 0 - used for a timing tick every 2ms, produces interrupt
+  //----------------------------------------------------------------------------
+
+  // Timer / Counter 0 Control Register A
   TCCR0A = 0x02;
   // 0000 0010 : 0x02
   // |||| ||\\- WGM00, WGM01, Set for CTC (clear timer on compare)
@@ -117,7 +123,7 @@ static void _timerSetup() {
   // ||\\- COM0B1, COM0B0: Compare match output B, disconnectoed
   // \\- COM0A1, COM0A0: Compare match output A, disconnected
 
-  // Timer / Counter 0 control register B
+  // Timer / Counter 0 Control Register B
   TCCR0B = 0x04;
   // 0000 0100 : 0x04
   // |||| |\\\- CS02, CS01, CS00: Clock select: Main clock / 256
@@ -148,6 +154,47 @@ static void _timerSetup() {
   // In TIMSK0, we're enabling the interrupt for Output compare A. in OCR0A
   // we set the value to compare to, here we're making sure an interrupt will
   // be triggered when Timer/Counter 0's counter value matches what's in there.
+
+  //----------------------------------------------------------------------------
+  // Timer / Counter 1 - used for sound output, producing square waves
+  //----------------------------------------------------------------------------
+
+  // Timer / Counter 1 Control Register A
+  TCCR1A = 0x40;
+  // 0100 0000 : 0x40
+  // |||| ||\\- WGM11:10: Part of WGM13:10, set to mode 4: CTC with TOP=OCR1A
+  // |||| ||              Timer counter will be cleared when it matches output
+  // |||| ||              compare register A. This being on makes it so that
+  // |||| ||              output compare register combined with the prescaler
+  // |||| ||              determine the resulting square wave frequency.
+  // |||| \\- Unused
+  // ||\\- COM1B1:0: Normal operation, OC1B disconnected: no pin toggling for
+  // ||              output compare register B
+  // \\- COM1A1:0: Toggle OC1A on Compare Match: on
+  //               The OC1A (PA6) pin will be toggled every time the output
+  //               compare register A matches the counter value
+
+  // Timer / Counter 1 Control Register B
+  TCCR1B = 0x0A;
+  // 0000 1010 : 0x0A
+  // |||| |\\\- CS12:10: Clock select: Main clock / 8 
+  // |||\ \- WGM13:12: Part of WGM13:10, set to mode 4. See comment for TCCR1A
+  // |||               WGM11:10 bits.
+  // ||\- Unused
+  // |\- ICES1: Input Capture Edge Select: off, irrelevant
+  // \- ICNC1: Input Capture Noise Canceler: off, irrelevant
+
+  // Timer / Counter 1 Control Register C
+  TCCR1C = 0x00;
+  // 0000 0000 : 0x00
+  // ||\\ \\\\- Unused
+  // \\- FOC1A, FOC1B: Force Output Compate for Channel A, B: irrelevant, only
+  //                   relevant in PWM modes, which we aren't using.
+
+  // Output Compare Register 1 A
+  OCR1A = 2273; // Set for a frequency of ~440.Hz at the output pin, for testing
+  // Later on this should be set up to be quiet initially, and be dynamically
+  // changed for playing tunes.
 }
 
 static void _onPinChangeA(uint8_t pin) {
