@@ -6,8 +6,8 @@ $Descr A4 11693 8268
 encoding utf-8
 Sheet 1 1
 Title "Ping-pong Score Board"
-Date ""
-Rev ""
+Date "2019-11-15"
+Rev "0"
 Comp ""
 Comment1 ""
 Comment2 ""
