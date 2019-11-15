@@ -1,4 +1,12 @@
+# Compilation output
 *.o
 *.hex
 *.elf
+
+# Vim swap files
 *.swp
+
+# Kicad backup files, gerber output
+*.bck
+*.sch-bak
+gerber/
