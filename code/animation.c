@@ -6,16 +6,16 @@
 #include "pingpong.h"
 
 static Animation * _activeAnimation;
+static Animation * _activeMelodyAnimation;
 
-static Animation _startupAnim, _player1WonAnim, _player2WonAnim,
-                 _buttonPressAnim, _buttonLongPressAnim;
+static Animation _startupAnim, _player1WonAnim, _player2WonAnim;
 
 static void _startupFrame(Animation *);
 static void _player1WinFrame(Animation *);
 static void _player2WinFrame(Animation *);
 static void _winFrame(Animation *, uint8_t);
-static void _buttonPressFrame(Animation *);
-static void _buttonLongPressFrame(Animation *);
+static void _animTick(Animation *, uint32_t);
+static void _animClear(Animation *);
 
 void animationInit() {
   // Set up animation structs
@@ -30,41 +30,26 @@ void animationInit() {
   _player2WonAnim.stepTicks = 100;
   _player2WonAnim.duration = 20;
   _player2WonAnim.frame = (animatorFunction)_player2WinFrame;
-
-  // TODO: other animations, further setup
-  _buttonPressAnim.frame = (animatorFunction)_buttonPressFrame;
-
-  _buttonLongPressAnim.frame = (animatorFunction)_buttonLongPressFrame;
 }
 
 void animationTick(uint32_t ticks) {
-  Animation * anim = _activeAnimation;
-
-  if (anim == NULL) return;
-
-  if (ticks % anim->stepTicks != 0) return;
-
-  if (anim->duration == anim->position) {
-    _activeAnimation = NULL;
-    return;
-  }
-
-  anim->frame(anim);
-  anim->position++;
+  _animTick(_activeAnimation, ticks);
+  _animTick(_activeMelodyAnimation, ticks);
 }
 
 void animationSetActive(Animation * anim) {
   _activeAnimation = anim;
 }
 
+void animationSetActiveMelody(Animation * meloAnim) {
+  _activeMelodyAnimation = meloAnim;
+}
+
 void animationClear() {
-  if (_activeAnimation == NULL) return;
-
-  // Skip to final frame, essentially. Letting the animation wrap up.
-  _activeAnimation->position = _activeAnimation->duration - 1;
-  _activeAnimation->frame(_activeAnimation);
-
+  _animClear(_activeAnimation);
   _activeAnimation = NULL;
+  _animClear(_activeMelodyAnimation);
+  _activeMelodyAnimation = NULL;
 }
 
 void animationTrigger(Animations animEnum) {
@@ -74,14 +59,32 @@ void animationTrigger(Animations animEnum) {
     case Startup: anim = &_startupAnim; break;
     case Player1Win: anim = &_player1WonAnim; break;
     case Player2Win: anim = &_player2WonAnim; break;
-    case ButtonPress: anim = &_buttonPressAnim; break;
-    case ButtonLongPress: anim = &_buttonLongPressAnim; break;
+    default: return;
   }
 
-  if (anim != NULL) {
-    anim->position = 0;
-    animationSetActive(anim);
+  anim->position = 0;
+  animationSetActive(anim);
+}
+
+void _animTick(Animation * anim, uint32_t ticks) {
+  if (anim == NULL) return;
+
+  if (ticks % anim->stepTicks != 0) return;
+
+  if (anim->duration == anim->position) {
+    if (anim == _activeAnimation) _activeAnimation = NULL;
+    if (anim == _activeMelodyAnimation) _activeMelodyAnimation = NULL;
+    return;
   }
+
+  anim->frame(anim);
+  anim->position++;
+}
+
+void _animClear(Animation * anim) {
+  if (anim == NULL) return;
+  anim->position = anim->duration -1;
+  anim->frame(anim);
 }
 
 // Animation implementations ---------------------------------------------------
@@ -101,7 +104,7 @@ static void _startupFrame(Animation * a) {
     pingpongSetMode(PINGPONG_DISPMODE_GAME);
   }
 
-  // Note actual position is incremented by animation system
+  // Note: actual position is incremented by animation system
   pos++;
 
   if (pos < 0x10
@@ -124,12 +127,4 @@ static void _player2WinFrame(Animation * a) {
 static void _winFrame(Animation * a, uint8_t player) {
   bool ledOn = a->position % 2 == 0;
   pingpongIndicatePlayerTurn(ledOn ? player : PINGPONG_PLAYER_NONE);
-}
-
-static void _buttonPressFrame(Animation * a) {
-
-}
-
-static void _buttonLongPressFrame(Animation * a) {
-
 }

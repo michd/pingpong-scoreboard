@@ -1,6 +1,7 @@
 #include <avr/eeprom.h>
 #include "pingpong.h"
 #include "animation.h"
+#include "tonegen.h"
 #include "MAX72S19.h"
 #include "button.h"
 #include "stdbool.h"
@@ -81,6 +82,7 @@ void pingpongInit(
   _cachedAllTimeScores[1] = _allTimeScores[1];
 
   animationTrigger(Startup);
+  tonegenTriggerMelody(StartupMelo);
 }
 
 void pingpongGameTick() {
@@ -93,11 +95,13 @@ void pingpongButtonPress(Button * button) {
 
   if (button == _modeButton) {
     _modeButtonPress();
+    tonegenTriggerMelody(ButtonPressSfx);
     return;
   }
 
   _playerButtonPress(
       button == _playerButtons[0] ? PINGPONG_PLAYER_1 : PINGPONG_PLAYER_2);
+  tonegenTriggerMelody(ButtonPressSfx);
 }
 
 void pingpongButtonLongPress(Button * button) {
@@ -105,11 +109,13 @@ void pingpongButtonLongPress(Button * button) {
 
   if (button == _modeButton) {
     _modeButtonLongPress();
+    tonegenTriggerMelody(ButtonLongPressSfx);
     return;
   }
 
   _playerButtonLongPress(
       button == _playerButtons[0] ? PINGPONG_PLAYER_1 : PINGPONG_PLAYER_2);
+  tonegenTriggerMelody(ButtonLongPressSfx);
 }
 
 void pingpongSetMode(uint8_t newMode) {

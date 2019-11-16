@@ -1,6 +1,47 @@
 #include "tonegen.h"
+#include "animation.h"
 #include <avr/io.h>
+#include "stddef.h"
+
+static uint16_t startupSeq[] = {
+  0x0401, // C4, 1
+  0x2401, // D4, 1
+  0x4401, // E4, 1
+  0x5401, // F4, 1
+  0x7401, // G4, 1
+  0x9401, // A4, 1
+  0xB401, // B4, 1
+  0x0505, // C5, 5
+};
+
+static uint16_t buttonPressSeq[] = {
+  0x0401, // C4, 1
+  0x0501, // C5, 1
+};
+
+static uint16_t buttonLongPressSeq[] = {
+  0x7503, // G5, 3
+  0x0402, // C4, 1
+};
+
+typedef struct {
+  uint16_t * seqPtr;
+  uint16_t length;
+  // differs in that this is how many ticks it takes to complete
+  uint16_t duration; 
+  uint16_t stepTicks;
+  uint16_t position;
+  uint16_t stepPosition;
+} Melody;
+
 static uint8_t BASE_OCTAVE = 4; 
+static Animation melodyAnim;
+
+static Melody startupMelody;
+static Melody buttonPressMelody;
+static Melody buttonLongPressMelody;
+
+static Melody * activeMelody;
 
 // These are calculated based on:
 // - 16MHz clock frequency
@@ -27,19 +68,51 @@ static float compValues[] = {
 };
 
 static uint16_t getCompValue(uint8_t noteIndex, uint8_t octave);
+static void calcMelodyDuration(Melody * );
+static void decodeStep(
+    uint16_t raw,
+    uint8_t * outNnote, uint8_t * outOctave, uint8_t * outDuration);
+static void playNote(tonegenNotes note, uint8_t octave);
+static void melodyFrame(Animation *);
 
-void tonegenToggle(bool on) {
-  if (on) {
-    // Set the timer pin to toggle on compare match
-    TCCR1A |= 0x40;
-  } else {
-    // Disconnect the timer pin, nothing happens on it on compare match
-    TCCR1A &= ~(0x40);
-  }
+void tonegenInit() {
+  startupMelody.seqPtr = startupSeq;
+  startupMelody.length = sizeof(startupSeq) / sizeof(uint16_t);
+  startupMelody.stepTicks = 75;
+  calcMelodyDuration(&startupMelody);
+
+  buttonPressMelody.seqPtr = buttonPressSeq;
+  buttonPressMelody.length = sizeof(buttonPressSeq) / sizeof(uint16_t);
+  buttonPressMelody.stepTicks = 25;
+  calcMelodyDuration(&buttonPressMelody);
+
+  buttonLongPressMelody.seqPtr = buttonLongPressSeq;
+  buttonLongPressMelody.length = sizeof(buttonLongPressSeq) / sizeof(uint16_t);
+  buttonLongPressMelody.stepTicks = 25;
+  calcMelodyDuration(&buttonLongPressMelody);
+
+  melodyAnim.frame = (animatorFunction)melodyFrame;
 }
 
-void tonegenPlayNote(tonegenNotes note, uint8_t octave) {
-  OCR1A = getCompValue((uint8_t)note, octave);
+void tonegenTriggerMelody(Melodies melodyName) {
+  Melody * melo;
+  TONEGEN_OFF();
+
+  switch (melodyName) {
+    case StartupMelo: melo = &startupMelody; break;
+    case ButtonPressSfx: melo = &buttonPressMelody; break;
+    case ButtonLongPressSfx: melo = &buttonLongPressMelody; break;
+    default: return;
+  }
+
+  melo->position = 0;
+  melo->stepPosition = 0;
+  activeMelody = melo;
+
+  melodyAnim.stepTicks = melo->stepTicks;
+  melodyAnim.position = 0;
+  melodyAnim.duration = melo->duration;
+  animationSetActiveMelody(&melodyAnim);
 }
 
 static uint16_t getCompValue(uint8_t noteIndex, uint8_t octave) {
@@ -59,3 +132,66 @@ static uint16_t getCompValue(uint8_t noteIndex, uint8_t octave) {
   // Poor man's round()
   return (uint16_t)(compValue + 0.5);
 }
+
+static void decodeStep(
+    uint16_t raw,
+    uint8_t * outNote, uint8_t * outOctave, uint8_t * outDuration) {
+  *outNote = (uint8_t)((raw & 0xF000) >> 12);
+  *outOctave = (uint8_t)((raw & 0x0F00) >> 8);
+  *outDuration = (uint8_t)(raw & 0x00FF);
+}
+
+static void calcMelodyDuration(Melody * melo) {
+  uint16_t i;
+  uint16_t ticksNeeded = 0;
+
+  for (i = 0; i < melo->length; i++) {
+    ticksNeeded += melo->seqPtr[i] & 0x00FF;
+  }
+
+  melo->duration = ticksNeeded + 1;
+}
+
+static void melodyFrame(Animation * anim) {
+  uint8_t sNote;
+  uint8_t sOctave;
+  uint8_t sDuration;
+
+  decodeStep(activeMelody->seqPtr[activeMelody->position],
+            &sNote, &sOctave, &sDuration);
+
+  if (activeMelody->stepPosition < sDuration) {
+    if (activeMelody->stepPosition == 0) {
+      playNote(sNote, sOctave);
+    }
+
+    activeMelody->stepPosition++;
+    return;
+  }
+
+  activeMelody->stepPosition = 0;
+  activeMelody->position++;
+
+  if (activeMelody->position == activeMelody->length) {
+    TONEGEN_OFF();
+    activeMelody = NULL;
+    return;
+  }
+
+  decodeStep(activeMelody->seqPtr[activeMelody->position],
+            &sNote, &sOctave, &sDuration);
+
+  playNote(sNote, sOctave);
+  activeMelody->stepPosition++;
+}
+
+void playNote(tonegenNotes note, uint8_t octave) {
+  if (note == Rest) {
+    TONEGEN_OFF();
+    return;
+  }
+
+  TONEGEN_ON();
+  OCR1A = getCompValue((uint8_t)note, octave);
+}
+

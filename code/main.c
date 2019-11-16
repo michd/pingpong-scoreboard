@@ -52,6 +52,7 @@ int main (void) {
   _ioSetup();
   _timerSetup();
   animationInit();
+  tonegenInit();
 
   // References to buttons for player 1, 2, and mode button
   pingpongInit(

@@ -10,8 +10,6 @@ typedef enum {
   Startup,
   Player1Win,
   Player2Win,
-  ButtonPress,
-  ButtonLongPress
 } Animations;
 
 typedef struct Animation {
@@ -24,6 +22,7 @@ typedef struct Animation {
 void animationInit();
 void animationTick(uint32_t);
 void animationSetActive(Animation *);
+void animationSetActiveMelody(Animation *);
 void animationClear();
 void animationTrigger(Animations);
 
