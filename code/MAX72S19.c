@@ -22,16 +22,23 @@ static void _shiftOut(uint8_t data);
 
 static uint8_t _digitCache[MAX_DIGITS];
 
-void displaySetup(uint8_t pinChipSelect, uint8_t pinDataOut, uint8_t pinClock) {
-	_pinChipSelect = pinChipSelect;
-	_pinDataOut = pinDataOut;
-	_pinClock = pinClock;	
-	
-	DDRA |= _BV(_pinChipSelect) | _BV(_pinDataOut) | _BV(_pinClock);
-	PORTA &= ~(_BV(_pinDataOut) | _BV(_pinClock));
-	PORTA |= _BV(_pinChipSelect);
+void displaySetup(uint8_t pinChipSelect, uint8_t pinDataOut, uint8_t pinClock,
+                  uint8_t decodeMode, uint8_t intensity, uint8_t scanLimit) {
+  _pinChipSelect = pinChipSelect;
+  _pinDataOut = pinDataOut;
+  _pinClock = pinClock;	
+
+  DDRA |= _BV(_pinChipSelect) | _BV(_pinDataOut) | _BV(_pinClock);
+  PORTA &= ~(_BV(_pinDataOut) | _BV(_pinClock));
+  PORTA |= _BV(_pinChipSelect);
+
+  _setRegister(REG_DECODEMODE, decodeMode);
+  displaySetIntensity(intensity);
+  _setRegister(REG_SCANLIMIT, constrain(scanLimit, 0x0, 0xF));
 
   for (uint8_t i = 0; i < MAX_DIGITS; i++) _digitCache[i] = 0x00;
+  displayClear();
+  _setRegister(REG_SHUTDOWN, 1);
 }
 
 
@@ -49,14 +56,6 @@ void displaySetLED(uint8_t row, uint8_t column, bool on) {
 
 void displaySetRow(uint8_t row, uint8_t states) {
   _setDigitRegister(REG_DIGIT0 + row, states);
-}
-
-void displaySetColumn(uint8_t column, uint8_t states) {
-  for (uint8_t y = 0; y < 8; y++) {
-    _setDigitRegister(
-        REG_DIGIT0 + y,
-        _digitCache[y - REG_DIGIT0] & ((~(1 << y)) | ((1 << y) & states)));
-  }
 }
 
 void displayClear() {
@@ -89,46 +88,8 @@ void displayWriteNumber(uint8_t digitIndex, uint8_t number) {
 	displayWriteChar(digitIndex, '0' + number, false);
 }
 
-void displayPrint(uint8_t startDigitIndex, char characters[]) {
-	uint8_t curDigit = constrain(startDigitIndex, 0, 7);
-	uint8_t charIndex = 0;
-	char curChar = characters[charIndex];
-
-	while (curDigit < MAX_DIGITS * 2) {
-		if (curChar == '\0') break;
-		bool curCharDot = characters[charIndex + 1] == '.';
-		displayWriteChar(curDigit++, curChar, curCharDot);
-		if (curCharDot) ++charIndex;
-		curChar = characters[++charIndex];
-	}
-}
-
-void displaySetDecodeMode(uint8_t modes) {
-	_setRegister(REG_DECODEMODE, modes);
-}
-
 void displaySetIntensity(uint8_t intensity) {
 	_setRegister(REG_INTENSITY, constrain(intensity, 0x0, 0xF));
-}
-
-void displaySetScanLimit(uint8_t scanLimit) {
-	_setRegister(REG_SCANLIMIT, constrain(scanLimit, 0x0, 0xF));
-}
-
-void displayStartDisplayTest() {
-	_setRegister(REG_DISPLAYTEST, 1);
-}
-
-void displayStopDisplayTest() {
-	_setRegister(REG_DISPLAYTEST, 0);
-}
-
-void displayShutdown() {
-	_setRegister(REG_SHUTDOWN, 0);
-}
-
-void displayActivate() {
-	_setRegister(REG_SHUTDOWN, 1);
 }
 
 // Private methods

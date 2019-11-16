@@ -102,12 +102,7 @@ static void _ioSetup() {
   _buttons[1].pin = PIN_BTN_PLAYER2;
   _buttons[2].pin = PIN_BTN_MODE;
 
-  displaySetup(PIN_DISP_CS, PIN_DISP_DATA, PIN_DISP_CLK);
-  displaySetDecodeMode(0x00);
-  displaySetIntensity(0xF);
-  displaySetScanLimit(6); // 5th and 6th digit used for some indication LEDs
-  displayClear();
-  displayActivate();
+  displaySetup(PIN_DISP_CS, PIN_DISP_DATA, PIN_DISP_CLK, 0x00, 0xF, 6);
 }
 
 static void _timerSetup() {

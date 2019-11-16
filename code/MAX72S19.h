@@ -28,22 +28,15 @@
 
 #define MAX_DIGITS      8
 
-void displaySetup(uint8_t pinChipSelect, uint8_t pinDataOut, uint8_t pinClock);
+void displaySetup(uint8_t pinChipSelect, uint8_t pinDataOut, uint8_t pinClock,
+                  uint8_t decodeMode, uint8_t intensity, uint8_t scanLimit);
 void displaySetLED(uint8_t row, uint8_t column, bool on);
 void displaySetRow(uint8_t row, uint8_t states);
-void displaySetColumn(uint8_t column, uint8_t states);
 void displayClear();
 void displayWrite(uint8_t reg, uint8_t value);
 void displayWriteChar(uint8_t digitIndex, char character, bool dotOn);
 void displayWriteNumber(uint8_t digitIndex, uint8_t number);
-void displayPrint(uint8_t startDigitIndex, char characters[]);
-void displaySetDecodeMode(uint8_t modes);
 void displaySetIntensity(uint8_t intensity);
-void displaySetScanLimit(uint8_t scanLimit);
-void displayStartDisplayTest();
-void displayStopDisplayTest();
-void displayShutdown();
-void displayActivate();
 
 
 #endif /* MAX72S19_H_ */
