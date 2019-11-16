@@ -8,6 +8,7 @@
 #include "button.h"
 #include "pingpong.h"
 #include "animation.h"
+#include "tonegen.h"
 #include "stdbool.h"
 #include "stdint.h"
 
@@ -52,6 +53,7 @@ static uint8_t _portACache;
 int main (void) {
   _ioSetup();
   _timerSetup();
+
 
   // References to buttons for player 1, 2, and mode button
   pingpongInit(
@@ -160,8 +162,8 @@ static void _timerSetup() {
   //----------------------------------------------------------------------------
 
   // Timer / Counter 1 Control Register A
-  TCCR1A = 0x40;
-  // 0100 0000 : 0x40
+  TCCR1A = 0x00;
+  // 0000 0000 : 0x00
   // |||| ||\\- WGM11:10: Part of WGM13:10, set to mode 4: CTC with TOP=OCR1A
   // |||| ||              Timer counter will be cleared when it matches output
   // |||| ||              compare register A. This being on makes it so that
@@ -170,14 +172,15 @@ static void _timerSetup() {
   // |||| \\- Unused
   // ||\\- COM1B1:0: Normal operation, OC1B disconnected: no pin toggling for
   // ||              output compare register B
-  // \\- COM1A1:0: Toggle OC1A on Compare Match: on
-  //               The OC1A (PA6) pin will be toggled every time the output
-  //               compare register A matches the counter value
+  // \\- COM1A1:0: Toggle OC1A on Compare Match: Disconnected
+  //               Turn this on with notegenToggle(true), will set this to 01.
+  //               The OC1A (PA6) pin will then be toggled every time the output
+  //               compare register A matches the counter value.
 
   // Timer / Counter 1 Control Register B
   TCCR1B = 0x0A;
   // 0000 1010 : 0x0A
-  // |||| |\\\- CS12:10: Clock select: Main clock / 8 
+  // |||| |\\\- CS12:10: Clock select: Main clock / 8
   // |||\ \- WGM13:12: Part of WGM13:10, set to mode 4. See comment for TCCR1A
   // |||               WGM11:10 bits.
   // ||\- Unused
