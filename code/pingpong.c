@@ -5,11 +5,6 @@
 #include "button.h"
 #include "stdbool.h"
 
-#define PINGPONG_DISPMODE_NONE 0
-#define PINGPONG_DISPMODE_GAME 1
-#define PINGPONG_DISPMODE_SET  2
-#define PINGPONG_DISPMODE_ALL  3
-
 #define PINGPONG_STATE_IDLE     0
 #define PINGPONG_STATE_GAME     1
 #define PINGPONG_STATE_GAME_END 2
@@ -52,7 +47,6 @@ static uint8_t _getWinningPlayer();
 static void _endOfGame();
 static void _newGame();
 static void _indicateIfScoresSaved();
-static void _startAnimFrame(Animation *);
 
 static uint16_t eepromAddrPlayer1;
 static uint16_t eepromAddrPlayer2;
@@ -70,7 +64,6 @@ static uint32_t _scoresLastSaved;
 static void _saveScores();
 static Button * _playerButtons[2];
 static Button * _modeButton;
-static Animation _startupAnimation;
 
 void pingpongInit(
   Button * p1Button, Button * p2Button, Button * modeButton,
@@ -87,30 +80,17 @@ void pingpongInit(
   _cachedAllTimeScores[0] = _allTimeScores[0];
   _cachedAllTimeScores[1] = _allTimeScores[1];
 
-  _startupAnimation.stepTicks = 25;
-  _startupAnimation.duration = 0x4F;
-  _startupAnimation.frame = _startAnimFrame;
-
-  animationSetActive(&_startupAnimation);
+  animationTrigger(Startup);
 }
 
 void pingpongGameTick() {
   _ticks++;
   _saveScores();
-
-  // TODO: use animation system for this
-
-  if (_state == PINGPONG_STATE_GAME_END) {
-    if (_ticks % 100 == 0) {
-      _indicatePlayerTurn(
-          _ticks % 200 == 0 
-            ? PINGPONG_PLAYER_NONE
-            : _getWinningPlayer());
-    }
-  }
 }
 
 void pingpongButtonPress(Button * button) {
+  animationClear();
+
   if (button == _modeButton) {
     _modeButtonPress();
     return;
@@ -121,6 +101,8 @@ void pingpongButtonPress(Button * button) {
 }
 
 void pingpongButtonLongPress(Button * button) {
+  animationClear();
+
   if (button == _modeButton) {
     _modeButtonLongPress();
     return;
@@ -128,6 +110,14 @@ void pingpongButtonLongPress(Button * button) {
 
   _playerButtonLongPress(
       button == _playerButtons[0] ? PINGPONG_PLAYER_1 : PINGPONG_PLAYER_2);
+}
+
+void pingpongSetMode(uint8_t newMode) {
+  _setMode(newMode);
+}
+
+void pingpongIndicatePlayerTurn(uint8_t player) {
+  _indicatePlayerTurn(player);
 }
 
 static void _modeButtonPress() {
@@ -154,7 +144,7 @@ static void _playerButtonPress(uint8_t player) {
       break;
 
     case PINGPONG_STATE_GAME:
-      _addPoint(player);
+       _addPoint(player);
       break;
 
     case PINGPONG_STATE_GAME_END:
@@ -408,6 +398,7 @@ static void _endOfGame() {
   _setScores[winner - 1]++;
   _allTimeScores[winner - 1]++;
   _state = PINGPONG_STATE_GAME_END;
+  animationTrigger(winner == PINGPONG_PLAYER_1 ? Player1Win : Player2Win);
 }
 
 static void _newGame() {
@@ -454,27 +445,3 @@ static void _indicateIfScoresSaved() {
 
   displaySetLED(0, 7, true);
 }
-
-void _startAnimFrame(Animation * anim) {
-  if (anim->position == 0) {
-    displayWriteChar(3, 'P', false);
-    displayWriteChar(2, 'i', false);
-    displayWriteChar(1, 'n', false);
-    displayWriteChar(0, 'g', false);
-  } else  if (anim->position == 0x20) {
-    displayWriteChar(2, 'o', false);
-  } else if (anim->position == 0x40) {
-    _setMode(PINGPONG_DISPMODE_GAME);
-  }
-
-  anim->position++;
-
-  if (anim->position < 0x10 
-      || (anim->position >= 0x20 && anim->position < 0x30)
-      || (anim->position >= 0x40)) {
-    displaySetIntensity(anim->position % 0x10);
-  } else {
-    displaySetIntensity(0xF - (anim->position % 0x10));
-  }
-}
-

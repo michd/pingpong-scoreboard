@@ -1,5 +1,3 @@
-#define F_CPU 16000000UL
-
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/eeprom.h>
@@ -53,7 +51,7 @@ static uint8_t _portACache;
 int main (void) {
   _ioSetup();
   _timerSetup();
-
+  animationInit();
 
   // References to buttons for player 1, 2, and mode button
   pingpongInit(
