@@ -14,7 +14,6 @@ void animationTick(uint32_t ticks) {
   anim->frame(anim);
 
   if (anim->duration == anim->position) {
-    if (anim->finished != NULL) anim->finished(anim);
     activeAnimation = NULL;
   }
 }

@@ -53,7 +53,6 @@ static void _endOfGame();
 static void _newGame();
 static void _indicateIfScoresSaved();
 static void _startAnimFrame(Animation *);
-static void _startAnimFinished(Animation *);
 
 static uint16_t eepromAddrPlayer1;
 static uint16_t eepromAddrPlayer2;
@@ -91,7 +90,6 @@ void pingpongInit(
   _startupAnimation.stepTicks = 25;
   _startupAnimation.duration = 0x4F;
   _startupAnimation.frame = _startAnimFrame;
-  _startupAnimation.finished = _startAnimFinished;
 
   animationSetActive(&_startupAnimation);
 }
@@ -480,4 +478,3 @@ void _startAnimFrame(Animation * anim) {
   }
 }
 
-void _startAnimFinished(Animation * anim) { }

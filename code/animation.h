@@ -11,7 +11,6 @@ typedef struct {
   int32_t duration; // Number of frames, -1 for infinite
   uint32_t position; // How many ticks into the animation
   animatorFunction frame;
-  animatorFunction finished;
 } Animation;
 
 void animationTick(uint32_t);
