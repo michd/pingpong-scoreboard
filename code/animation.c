@@ -20,7 +20,7 @@ static void _animClear(Animation *);
 
 void animationInit() {
   // Set up animation structs
-  _startupAnim.stepTicks = 25;
+  _startupAnim.stepTicks = 10;
   _startupAnim.duration = 0x4F;
   _startupAnim.frame = (animatorFunction)_startupFrame;
 
