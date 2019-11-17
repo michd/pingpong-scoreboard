@@ -5,13 +5,9 @@
 
 static uint16_t startupSeq[] = {
   0x0401, // C4, 1
-  0x2401, // D4, 1
   0x4401, // E4, 1
-  0x5401, // F4, 1
   0x7401, // G4, 1
-  0x9401, // A4, 1
-  0xB401, // B4, 1
-  0x0505, // C5, 5
+  0x0502  // C5, 2
 };
 
 static uint16_t winSeq[] = {
@@ -89,7 +85,7 @@ static void melodyFrame(Animation *);
 void tonegenInit() {
   startupMelody.seqPtr = startupSeq;
   startupMelody.length = sizeof(startupSeq) / sizeof(uint16_t);
-  startupMelody.stepTicks = 75;
+  startupMelody.stepTicks = 50;
   calcMelodyDuration(&startupMelody);
 
   buttonPressMelody.seqPtr = buttonPressSeq;
