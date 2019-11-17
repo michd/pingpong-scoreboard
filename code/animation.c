@@ -4,6 +4,7 @@
 #include "stdbool.h"
 #include "MAX72S19.h"
 #include "pingpong.h"
+#include "tonegen.h"
 
 static Animation * _activeAnimation;
 static Animation * _activeMelodyAnimation;
@@ -33,8 +34,8 @@ void animationInit() {
 }
 
 void animationTick(uint32_t ticks) {
-  _animTick(_activeAnimation, ticks);
   _animTick(_activeMelodyAnimation, ticks);
+  _animTick(_activeAnimation, ticks);
 }
 
 void animationSetActive(Animation * anim) {
@@ -50,6 +51,7 @@ void animationClear() {
   _activeAnimation = NULL;
   _animClear(_activeMelodyAnimation);
   _activeMelodyAnimation = NULL;
+  TONEGEN_OFF();
 }
 
 void animationTrigger(Animations animEnum) {

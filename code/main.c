@@ -248,8 +248,8 @@ static void _checkButtons() {
 
 static void _tick() {
   _ticks++;
-  _checkButtons();
   animationTick(_ticks);
+  _checkButtons();
   pingpongGameTick();
 }
 

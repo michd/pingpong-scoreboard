@@ -404,6 +404,7 @@ static void _endOfGame() {
   _setScores[winner - 1]++;
   _allTimeScores[winner - 1]++;
   _state = PINGPONG_STATE_GAME_END;
+  tonegenTriggerMelody(WinMelo);
   animationTrigger(winner == PINGPONG_PLAYER_1 ? Player1Win : Player2Win);
 }
 

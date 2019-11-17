@@ -14,13 +14,23 @@ static uint16_t startupSeq[] = {
   0x0505, // C5, 5
 };
 
+static uint16_t winSeq[] = {
+  0x7401, // G4, 1
+  0x0501, // C5, 1
+  0x4501, // E5, 1
+  0x7501, // G5, 1
+  0xC401, // R,  1
+  0x4501, // E5, 1
+  0x7504  // G5, 4
+};
+
 static uint16_t buttonPressSeq[] = {
   0x0401, // C4, 1
   0x0501, // C5, 1
 };
 
 static uint16_t buttonLongPressSeq[] = {
-  0x7503, // G5, 3
+  0x0503, // G5, 3
   0x0402, // C4, 1
 };
 
@@ -38,6 +48,7 @@ static uint8_t BASE_OCTAVE = 4;
 static Animation melodyAnim;
 
 static Melody startupMelody;
+static Melody winMelody;
 static Melody buttonPressMelody;
 static Melody buttonLongPressMelody;
 
@@ -91,15 +102,29 @@ void tonegenInit() {
   buttonLongPressMelody.stepTicks = 25;
   calcMelodyDuration(&buttonLongPressMelody);
 
+  winMelody.seqPtr = winSeq;
+  winMelody.length = sizeof(winSeq) / sizeof(uint16_t);
+  winMelody.stepTicks = 75;
+  calcMelodyDuration(&winMelody);
+
   melodyAnim.frame = (animatorFunction)melodyFrame;
 }
 
 void tonegenTriggerMelody(Melodies melodyName) {
   Melody * melo;
+
+  if (melodyName == ButtonPressSfx && activeMelody != NULL) {
+    // If we have a melody playing, don't interrupt it with the button press
+    // sound effect
+    return;
+  }
+
   TONEGEN_OFF();
+  animationSetActiveMelody(NULL);
 
   switch (melodyName) {
     case StartupMelo: melo = &startupMelody; break;
+    case WinMelo: melo = &winMelody; break;
     case ButtonPressSfx: melo = &buttonPressMelody; break;
     case ButtonLongPressSfx: melo = &buttonLongPressMelody; break;
     default: return;
