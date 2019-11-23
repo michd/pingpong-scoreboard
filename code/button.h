@@ -13,14 +13,15 @@ typedef struct {
   // Tick count when this was last has a debounced down-going flank
   uint64_t lastDown;
 
-  // Tick count when this last triggered a "pressed" call
-  uint64_t lastPress;
+  uint64_t lastUp;
 
   // Whether the button is currently down
   bool down;
 
   // Whether the button is currently down and has been held a "long" time
   bool held;
+
+  bool released;
 } Button;
 
 #endif // BUTTON_H_

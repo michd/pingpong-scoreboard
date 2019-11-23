@@ -19,8 +19,7 @@
 // Pin A6 used for timer 1 output compare match A output
 
 #define TICK_MS 2
-#define BTN_DEBOUNCE_TICKS 25
-#define BTN_PRESS_TICKS 1
+#define BTN_PRESS_TICKS 2
 #define BTN_LONG_PRESS_TICKS 750
 
 #define PINA_CHANGED(p) ((PINA & (1 << (p))) != (_portACache & (1 << (p))))
@@ -40,13 +39,15 @@
 
 static void _ioSetup();
 static void _timerSetup();
-static void _onPinChangeA(uint8_t pin);
+static void _onPinChangeA(Button *);
 static void _checkButtons();
 static void _tick();
 
-static Button _buttons[3];
+static volatile Button _buttons[3];
 static uint32_t _ticks;
 static uint8_t _portACache;
+
+static volatile bool _flagTick;
 
 int main (void) {
   _ioSetup();
@@ -64,7 +65,14 @@ int main (void) {
   sei();
 
   // Everything done via interrupts from this point
-  while (1);
+  while (1) {
+    _portACache = PINA;
+
+    if (_flagTick) {
+      _flagTick = false;
+      _tick();
+    }
+  }
 }
 
 static void _ioSetup() {
@@ -102,6 +110,9 @@ static void _ioSetup() {
   _buttons[0].pin = PIN_BTN_PLAYER1;
   _buttons[1].pin = PIN_BTN_PLAYER2;
   _buttons[2].pin = PIN_BTN_MODE;
+  _buttons[0].released = true;
+  _buttons[1].released = true;
+  _buttons[2].released = true;
 
   displaySetup(PIN_DISP_CS, PIN_DISP_DATA, PIN_DISP_CLK, 0x00, 0xF, 6);
 }
@@ -194,54 +205,44 @@ static void _timerSetup() {
   // changed for playing tunes.
 }
 
-static void _onPinChangeA(uint8_t pin) {
-  Button * btn = BTN_FOR_PIN(pin);
+static void _onPinChangeA(Button * btn) {
+  bool up = READ_PINA(btn->pin);
 
-  if (READ_PINA(pin)) {
-    // Don't care about positive flanks here, button down is cleared in
-    // _checkButtons are required
-    return;
-  }
-
-  btn->down = true;
-
-  if (_ticks - btn->lastDown > BTN_DEBOUNCE_TICKS) {
+  if (up) {
+    btn->lastUp = _ticks;
+  } else {
     btn->lastDown = _ticks;
   }
+
+  btn->down = !up;
 }
 
 static void _checkButtons() {
-  uint8_t i;
-  bool wasDown;
-  bool wasHeld;
-
   Button * btn;
+  uint8_t i;
+  bool wasHeld;
 
   for (i = 0; i < sizeof(_buttons) / sizeof(Button); i++) {
     btn = &_buttons[i];
-    wasDown = btn->down;
-    wasHeld = btn->held;
+    btn->down = !READ_PINA(btn->pin);
 
-    if (READ_PINA(btn->pin)) {
-      btn->down = false;
-      btn->held = false;
+    if (btn->down) {
+      btn->released = false;
+      if (btn->held) continue;
 
-      // Register the (short) press if the button was down for more than
-      // press ticks, but less than hold ticks, and is now released
-      if (
-          wasDown && !wasHeld && 
-          _ticks - btn->lastPress >= BTN_DEBOUNCE_TICKS &&
-          _ticks - btn->lastDown >= BTN_PRESS_TICKS) {
-        pingpongButtonPress(btn);
-        btn->lastPress = _ticks;
+      if ((_ticks - btn->lastDown) > BTN_LONG_PRESS_TICKS) {
+        btn->held = true;
+        pingpongButtonLongPress(btn);
       }
+    } else {
+      wasHeld = btn->held;
+      if (btn->released) continue;
 
-      continue;
-    }
-
-    if (_ticks - btn->lastDown > BTN_LONG_PRESS_TICKS && !btn->held) {
-      btn->held = true;
-      pingpongButtonLongPress(btn);
+      if ((_ticks - btn->lastUp) > BTN_PRESS_TICKS) {
+        btn->held = false;
+        btn->released = true;
+        if (!wasHeld) pingpongButtonPress(btn);
+      }
     }
   }
 }
@@ -256,19 +257,13 @@ static void _tick() {
 // Interrupt vector 0 triggered
 // This vector is used for pin change interrupts on port A
 ISR(PCINT0_vect) {
-  for (uint8_t i = 0; i < 8; i++) {
-    if (PINA_CHANGED(i)) {
-      _onPinChangeA(i);
-      _portACache = PINA;
-      break;
-    }
+  for (uint8_t i = 0; i < sizeof(_buttons) / sizeof(Button); i++) {
+    if (PINA_CHANGED(_buttons[i].pin)) _onPinChangeA(&_buttons[i]);
   }
-
-  _portACache = PINA;
 }
 
 // Interrupt vector for Timer 0 output compare match A triggered
 // Used for a 2ms tick for timing things that could do with timing
 ISR(TIM0_COMPA_vect) {
-  _tick();
+  _flagTick = true;
 }
