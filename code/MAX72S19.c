@@ -145,10 +145,18 @@ static void _setDigitRegister(uint8_t reg, uint8_t data) {
 }
 
 static void _setRegister(uint8_t reg, uint8_t data) {
-	_beginTransmission();
-	_shiftOut(reg);
-	_shiftOut(data);
-	_endTransmission();
+  _beginTransmission();;
+
+  switch (reg) {
+    case REG_DIGIT0: reg = REG_DIGIT3; break;
+    case REG_DIGIT1: reg = REG_DIGIT2; break;
+    case REG_DIGIT2: reg = REG_DIGIT1; break;
+    case REG_DIGIT3: reg = REG_DIGIT0; break;
+  }
+
+  _shiftOut(reg);
+  _shiftOut(data);
+  _endTransmission();
 }
 
 static void _shiftOut(uint8_t data) {
