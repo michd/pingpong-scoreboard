@@ -31,4 +31,6 @@ void tonegenInit();
 
 void tonegenTriggerMelody(Melodies);
 
+void tonegenClear();
+
 #endif // TONEGEN_H_

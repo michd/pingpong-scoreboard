@@ -6,8 +6,8 @@
 #include "pingpong.h"
 #include "tonegen.h"
 
-static Animation * _activeAnimation;
-static Animation * _activeMelodyAnimation;
+static volatile Animation * _activeAnimation;
+static volatile Animation * _activeMelodyAnimation;
 
 static Animation _startupAnim, _player1WonAnim, _player2WonAnim;
 

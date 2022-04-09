@@ -41,14 +41,14 @@ typedef struct {
 } Melody;
 
 static uint8_t BASE_OCTAVE = 4; 
-static Animation melodyAnim;
+static volatile Animation melodyAnim;
 
 static Melody startupMelody;
 static Melody winMelody;
 static Melody buttonPressMelody;
 static Melody buttonLongPressMelody;
 
-static Melody * activeMelody;
+static volatile Melody * activeMelody;
 
 // These are calculated based on:
 // - 16MHz clock frequency
@@ -109,7 +109,9 @@ void tonegenInit() {
 void tonegenTriggerMelody(Melodies melodyName) {
   Melody * melo;
 
-  if (melodyName == ButtonPressSfx && activeMelody != NULL) {
+  if (melodyName == ButtonPressSfx && activeMelody != NULL 
+      && activeMelody != &buttonPressMelody
+      && activeMelody != &buttonLongPressMelody) {
     // If we have a melody playing, don't interrupt it with the button press
     // sound effect
     return;
@@ -134,6 +136,10 @@ void tonegenTriggerMelody(Melodies melodyName) {
   melodyAnim.position = 0;
   melodyAnim.duration = melo->duration;
   animationSetActiveMelody(&melodyAnim);
+}
+
+void tonegenClear() {
+  activeMelody = NULL;
 }
 
 static uint16_t getCompValue(uint8_t noteIndex, uint8_t octave) {

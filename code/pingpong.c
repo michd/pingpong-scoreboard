@@ -92,6 +92,7 @@ void pingpongGameTick() {
 
 void pingpongButtonPress(Button * button) {
   animationClear();
+  tonegenClear();
 
   if (button == _modeButton) {
     _modeButtonPress();
@@ -106,6 +107,7 @@ void pingpongButtonPress(Button * button) {
 
 void pingpongButtonLongPress(Button * button) {
   animationClear();
+  tonegenClear();
 
   if (button == _modeButton) {
     _modeButtonLongPress();
